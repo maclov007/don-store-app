@@ -1,5 +1,3 @@
 requests
 flask
 urllib3
-baileys-wrapper  # ou a biblioteca equivalente de conexão
-
