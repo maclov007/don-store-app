@@ -8,7 +8,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Bot F12 de Inspeção de Checkout está Online!"
+    return "Bot F12 Network Inspector (Modo Completo) está Online!"
 
 @app.route('/analisar', methods=['POST'])
 def analisar_checkout():
@@ -18,40 +18,58 @@ def analisar_checkout():
     if not url:
         return jsonify({"erro": "Nenhuma URL fornecida."}), 400
 
+    # Simulação realista de headers de um navegador real para puxar o tráfego limpo
     headers = {
         "User-Agent": "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
-        "Accept": "application/json, text/plain, */*",
-        "Accept-Language": "pt-BR,pt;q=0.9",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+        "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
         "Connection": "keep-alive"
     }
 
     try:
         inicio = time.time()
-        resposta = requests.get(url, headers=headers, timeout=15)
+        # Executando a requisição e capturando o caminho reverso completo
+        resposta = requests.get(url, headers=headers, allow_redirects=True, timeout=20)
         fim = time.time()
         
         tempo_resposta = round((fim - inicio) * 1000, 2)
 
+        # Montando o relatório técnico absoluto (Tudo o que o F12 exibe em texto)
         relatorio = f"""
-==================================================
-[F12 NETWORK INSPECTOR - NUVEM]
-==================================================
-📍 URL ALVO: {url}
-⚙️ MÉTODO: GET
-⏱️ TEMPO DE RESPOSTA: {tempo_resposta} ms
-🔢 STATUS CODE: {resposta.status_code}
---------------------------------------------------
-📋 HEADERS DE RESPOSTA CAPTURADOS:
+====================================================================
+[F12 NETWORK INSPECT - RELATÓRIO TÉCNICO COMPLETO]
+====================================================================
+📍 URL Alvo: {url}
+🔗 URL Final (Após Redirects): {resposta.url}
+⚙️ Método: {resposta.request.method}
+🔢 Status Code: {resposta.status_code}
+⏱️ Tempo de Resposta: {tempo_resposta} ms
+--------------------------------------------------------------------
+📋 REQUEST HEADERS (Cabeçalhos Enviados):
+{json.dumps(dict(resposta.request.headers), indent=2)}
+--------------------------------------------------------------------
+📋 RESPONSE HEADERS (Cabeçalhos de Resposta / Servidor):
 {json.dumps(dict(resposta.headers), indent=2)}
---------------------------------------------------
-📥 CORPO DA RESPOSTA (CAMINHO REVERSO / PAYLOAD):
-{resposta.text[:3000]}
-==================================================
+--------------------------------------------------------------------
+🍪 COOKIES CAPTURADOS NA SESSÃO:
+{dict(resposta.cookies)}
+--------------------------------------------------------------------
+📥 RESPONSE BODY (O Caminho Reverso / Código Bruto Completo):
+{resposta.text[:10000]}
+====================================================================
 """
         return jsonify({"status": "sucesso", "relatorio": relatorio})
 
     except Exception as e:
-        return jsonify({"status": "erro", "detalhes": str(e)}), 500
+        erro_detalhado = f"""
+====================================================================
+[F12 NETWORK INSPECT - ERRO NO CAMINHO REVERSO]
+====================================================================
+📍 URL Alvo: {url}
+❌ Falha ao processar requisição: {str(e)}
+====================================================================
+"""
+        return jsonify({"status": "erro", "detalhes": erro_detalhado}), 500
 
 if __name__ == '__main__':
     porta = int(os.environ.get("PORT", 5000))
