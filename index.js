@@ -1,33 +1,78 @@
-const { makeWASocket, useMultiFileAuthState, delay } = require('@whiskeysockets/baileys');
+const { makeWASocket, useMultiFileAuthState, delay, DisconnectReason } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const express = require('express');
+const qrcode = require('qrcode');
 
 const app = express();
 app.use(express.json());
 const PORT = process.env.PORT || 3000;
 
-app.get('/', (req, res) => res.send('Bot DON 777 está Online!'));
-
 let sock;
+let qrGlobal = '';
+let statusConexao = 'Aguardando inicialização...';
 let grupoIdSalvo = null; 
-const NUMERO_DONO = "5565993416402@s.whatsapp.net"; // Seu número pessoal como dono
-
-// SENHA DE SEGURANÇA PARA O TELEGRAM
+const NUMERO_DONO = "5565993416402@s.whatsapp.net";
 const TOKEN_SECRETO = "DON777_TOKEN_SUPER_SECRETO_123";
+
+// --- TELA WEB PARA ESCANEAR O QR CODE FACILMENTE ---
+app.get('/', (req, res) => {
+    res.send(`
+        <html>
+            <head>
+                <title>Painel - DON 777</title>
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <style>
+                    body { font-family: Arial, sans-serif; text-align: center; background: #121212; color: #fff; margin-top: 50px; }
+                    .card { background: #1e1e1e; padding: 20px; border-radius: 10px; display: inline-block; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+                    h2 { color: #00ff88; }
+                    img { margin-top: 15px; border-radius: 8px; background: #fff; padding: 10px; width: 260px; height: 260px; }
+                    p { font-size: 16px; }
+                </style>
+            </head>
+            <body>
+                <div class="card">
+                    <h2>🤖 BOT DON GG'S - CONEXÃO</h2>
+                    <p>Status: <b>${statusConexao}</b></p>
+                    ${qrGlobal ? `<img src="${qrGlobal}" />` : `<p>Carregando QR Code ou já conectado...</p>`}
+                    <p style="font-size: 12px; color: #aaa; margin-top: 15px;">Atualize a página se o QR Code expirar.</p>
+                </div>
+                <script>setTimeout(() => { location.reload(); }, 10000);</script>
+            </body>
+        </html>
+    `);
+});
 
 async function connectToWhatsApp() {
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
+    
     sock = makeWASocket({
         logger: pino({ level: 'silent' }),
-        printQRInTerminal: false,
+        printQRInTerminal: true,
         auth: state,
     });
 
-    if (!sock.authState.creds.registered) {
-        const phoneNumber = "639461201441"; // Número do bot (Filipinas)
-        const code = await sock.requestPairingCode(phoneNumber);
-        console.log(`\nCÓDIGO DE PAREAMENTO: ${code}\n`);
-    }
+    sock.ev.on('connection.update', async (update) => {
+        const { connection, lastDisconnect, qr } = update;
+        
+        if (qr) {
+            statusConexao = 'Escaneie o QR Code abaixo';
+            qrGlobal = await qrcode.toDataURL(qr);
+        }
+
+        if (connection === 'open') {
+            statusConexao = 'CONECTADO COM SUCESSO! 🚀';
+            qrGlobal = '';
+            console.log('[SUCESSO] Bot conectado ao WhatsApp!');
+        }
+
+        if (connection === 'close') {
+            const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+            statusConexao = 'Desconectado. Tentando reconectar...';
+            if (shouldReconnect) {
+                connectToWhatsApp();
+            }
+        }
+    });
 
     sock.ev.on('creds.update', saveCreds);
 
@@ -48,7 +93,7 @@ async function connectToWhatsApp() {
         res.status(200).send('Enviado com sucesso!');
     });
 
-    // --- CAPTURA O ID DO GRUPO SOZINHO E COMANDOS DO DONO ---
+    // --- CAPTURA O ID DO GRUPO E COMANDOS DO DONO ---
     sock.ev.on('messages.upsert', async ({ messages }) => {
         const m = messages[0];
         if (!m.message) return;
@@ -75,7 +120,7 @@ async function connectToWhatsApp() {
         }
     });
 
-    // --- BOAS-VINDAS COM AS REGRAS AJUSTADAS ---
+    // --- BOAS-VINDAS ---
     sock.ev.on('group-participants.update', async (update) => {
         if (update.action === 'add') {
             const num = update.participants[0];
