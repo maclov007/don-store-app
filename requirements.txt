@@ -1,4 +1,0 @@
-requests
-flask
-urllib3
-pywa
